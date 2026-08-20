@@ -37,11 +37,15 @@
 
 // editor
 #include "Misc/StringOutputDevice.h"
-#include "DesktopPlatformModule.h"
-#include "IDesktopPlatform.h"
 #include "ImageUtils.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Engine/Texture2D.h"
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <commdlg.h>
+#include <windows.h>
+#include "Windows/HideWindowsPlatformTypes.h"
+#endif
 
 // ============================
 //*****************************
@@ -116,7 +120,7 @@ static void Static_DebugDrawPageAreas(UWorld* World, const FScrapbookPage& Page,
         DrawDebugLine(World, BRWorld, BLWorld, FColor::Green, false, Duration, 0, 2.0f);
         DrawDebugLine(World, BLWorld, TLWorld, FColor::Green, false, Duration, 0, 2.0f);
 
-        FString TraitName = StaticEnum<EEvidenceTraitType>()->GetNameStringByValue(static_cast<int64>(Area.Trait.Type));
+        FString TraitName = Area.Trait.TypeName.ToString();
         DrawDebugString(World, TLWorld, *TraitName, nullptr, FColor::Green, Duration);
     }
 }
@@ -264,7 +268,7 @@ void UScrapbookingFunctionLibrary::DebugDrawPageAreas(
         DrawDebugString(
             World,
             WorldCenter,
-            FString::Printf(TEXT("%s:%d"), *StaticEnum<EEvidenceTraitType>()->GetNameStringByValue(static_cast<int64>(Area.Trait.Type)), Area.Trait.Magnitude),
+            FString::Printf(TEXT("%s:%d"), *Area.Trait.TypeName.ToString(), Area.Trait.Magnitude),
             nullptr,
             FColor::White,
             0.0f
@@ -951,9 +955,48 @@ TArray<AActor*> UScrapbookingFunctionLibrary::ActorLocationSort(const TArray<AAc
     return Ret;
 }
 
-TArray<FEvidenceTrait> UScrapbookingFunctionLibrary::GetTraitProductsFromInteractions(const TArray<FEvidenceTrait>& A, const TArray<FEvidenceTrait>& B, const TArray<FEvidenceTraitInteraction>& Rules, const FVector& Location, TArray<FEvidenceTraitInteractionResult>& RuleApplicationResults)
+static void ClearExistingSetsForEvidence( AActor* ActorA, AActor* ActorB, TArray<FEvidenceSet>& EvidenceSets )
+{
+    TArray<FEvidenceSet> FilteredSets;
+    for (auto& Set : EvidenceSets)
+    {
+        if ( !( Set.Evidence.Contains(ActorA) || Set.Evidence.Contains(ActorB) ) )
+        {
+            FilteredSets.Add(Set);
+        }
+    }
+    EvidenceSets = FilteredSets;
+}
+
+static FEvidenceSet& GetOrCreateEvidenceSet( AActor* Actor, const TArray<FEvidenceTrait>& Traits, TArray<FEvidenceSet>& EvidenceSets )
+{
+    for (auto& Set : EvidenceSets)
+    {
+        if ( Set.Evidence.Contains( Actor ) )
+        {
+            return Set;
+        }
+    }
+
+    FEvidenceSet NewSet;
+    NewSet.Evidence.Add(Actor);
+    NewSet.Traits = Traits;
+    return EvidenceSets[ EvidenceSets.Add(NewSet) ];
+}
+
+UE_DISABLE_OPTIMIZATION
+
+TArray<FEvidenceTrait> UScrapbookingFunctionLibrary::GetTraitProductsFromInteractions(const TArray<FEvidenceTrait>& A, const TArray<FEvidenceTrait>& B, AActor* ActorA, AActor* ActorB, const TArray<FEvidenceTraitInteraction>& Rules, const FVector& Location, TArray<FEvidenceSet>& EvidenceSets, TArray<FEvidenceTraitInteractionResult>& RuleApplicationResults)
 {
     TArray<FEvidenceTrait> Products;
+
+    // Overlapping actors should come from two different sets
+
+    const FEvidenceSet& SetA = GetOrCreateEvidenceSet( ActorA, A, EvidenceSets );
+    const FEvidenceSet& SetB = GetOrCreateEvidenceSet( ActorB, B, EvidenceSets );
+
+    Products.Append(SetA.Traits);
+    Products.Append(SetB.Traits);
 
     for (const FEvidenceTraitInteraction& Rule : Rules)
     {
@@ -961,14 +1004,37 @@ TArray<FEvidenceTrait> UScrapbookingFunctionLibrary::GetTraitProductsFromInterac
         {
             case EEvidenceTraitInteractionType::Conversion:
             {
-                auto APtr = A.FindByPredicate([Rule](const FEvidenceTrait& T) { return T.Type == Rule.InputTypeA; });
-                auto BPtr = B.FindByPredicate([Rule](const FEvidenceTrait& T) { return T.Type == Rule.InputTypeB; });
+                auto APtr = SetA.Traits.FindByPredicate([Rule](const FEvidenceTrait& T) { return T.TypeName == Rule.InputTypeNameA; });
+                auto BPtr = SetB.Traits.FindByPredicate([Rule](const FEvidenceTrait& T) { return T.TypeName == Rule.InputTypeNameB; });
                 if (APtr && BPtr)
                 {
                     int ResultAmount = FMath::RoundToInt((APtr->Magnitude / 100.f) * BPtr->Magnitude );
-                    Products.Add( FEvidenceTrait(Rule.InputTypeB, -ResultAmount ) );
-                    Products.Add( FEvidenceTrait(Rule.OutputTypeC, ResultAmount ) );
+                    Products.Add( FEvidenceTrait(Rule.InputTypeNameB, -ResultAmount ) );
+                    Products.Add( FEvidenceTrait(Rule.OutputTypeNameC, ResultAmount ) );
                     RuleApplicationResults.Add( FEvidenceTraitInteractionResult( Rule, { APtr->Magnitude, BPtr->Magnitude, ResultAmount }, Location) );
+                }
+                continue;
+            }
+
+            case EEvidenceTraitInteractionType::Combination:
+            {
+                auto APtr = SetA.Traits.FindByPredicate([Rule](const FEvidenceTrait& T) { return T.TypeName == Rule.InputTypeNameA; });
+                auto BPtr = SetB.Traits.FindByPredicate([Rule](const FEvidenceTrait& T) { return T.TypeName == Rule.InputTypeNameB; });
+
+                // Try the other order
+                if (!(APtr && BPtr))
+                {
+                    APtr = SetB.Traits.FindByPredicate([Rule](const FEvidenceTrait& T) { return T.TypeName == Rule.InputTypeNameA; });
+                    BPtr = SetA.Traits.FindByPredicate([Rule](const FEvidenceTrait& T) { return T.TypeName == Rule.InputTypeNameB; });
+                }
+
+                if (APtr && BPtr)
+                {
+                    int ProductMagnitude = FMath::Min(APtr->Magnitude, BPtr->Magnitude);
+                    Products.Add(FEvidenceTrait(Rule.InputTypeNameA, -ProductMagnitude));
+                    Products.Add(FEvidenceTrait(Rule.InputTypeNameB, -ProductMagnitude));
+                    Products.Add(FEvidenceTrait(Rule.OutputTypeNameC, ProductMagnitude));
+                    RuleApplicationResults.Add(FEvidenceTraitInteractionResult(Rule, { APtr->Magnitude, BPtr->Magnitude, ProductMagnitude }, Location));
                 }
                 continue;
             }
@@ -977,22 +1043,38 @@ TArray<FEvidenceTrait> UScrapbookingFunctionLibrary::GetTraitProductsFromInterac
         }
     }
 
+    // Merge evidence sets and use the new product
+    Products = SumTraits(Products);
+
+    FEvidenceSet NewSet;
+    NewSet.Evidence.Append(SetA.Evidence);
+    NewSet.Evidence.Append(SetB.Evidence);
+    NewSet.Traits.Append(Products);
+
+    ClearExistingSetsForEvidence(ActorA, ActorB, EvidenceSets);
+    EvidenceSets.Add(NewSet);
+
     return Products;
 }
 
+UE_ENABLE_OPTIMIZATION
+
 TArray<FEvidenceTrait> UScrapbookingFunctionLibrary::SumTraits(const TArray<FEvidenceTrait>& Input)
 {
-    TMap<EEvidenceTraitType, int> Tally;
+    TMap<FName, int> Tally;
 
     for (auto& Trait : Input)
     {
-        Tally.FindOrAdd(Trait.Type) += Trait.Magnitude;
+        Tally.FindOrAdd(Trait.TypeName) += Trait.Magnitude;
     }
 
     TArray<FEvidenceTrait> Result;
     for (auto& Entry : Tally)
     {
-        Result.Add(FEvidenceTrait(Entry.Key, Entry.Value));
+        if ( Entry.Value > 0 )
+        {
+            Result.Add(FEvidenceTrait(Entry.Key, Entry.Value));
+        }
     }
 
     return Result;
@@ -1132,29 +1214,95 @@ bool UScrapbookingFunctionLibrary::ConvertUnrealTextToInteractionList(const FStr
     return true;
 }
 
+static bool OpenFileDialog(
+    const FString& DialogTitle,
+    const FString& DefaultPath,
+    const FString& FileTypes,
+    FString& OutSelectedFilePath
+)
+{
+#if PLATFORM_WINDOWS
+    OPENFILENAMEW Ofn;
+    wchar_t SzFile[MAX_PATH] = { 0 };
+
+    // Convert string inputs to TCHAR/WCHAR format for Windows API
+    FString CleanDefaultPath = FPaths::ConvertRelativePathToFull(DefaultPath);
+    CleanDefaultPath.ReplaceInline(TEXT("/"), TEXT("\\"));
+
+    // Build the Windows API filter string (Format: "Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0\0")
+    // Input format expected: "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
+    FString WindowsFilter = FileTypes;
+    WindowsFilter.ReplaceInline(TEXT("|"), TEXT("\0"), ESearchCase::CaseSensitive);
+    WindowsFilter.AppendChar(TEXT('\0')); // Double null-terminate
+
+    ZeroMemory(&Ofn, sizeof(Ofn));
+    Ofn.lStructSize = sizeof(Ofn);
+
+    // Get active window handle or pass nullptr
+    Ofn.hwndOwner = (HWND)FSlateApplication::Get().GetActiveTopLevelWindow()->GetNativeWindow()->GetOSWindowHandle();
+    Ofn.lpstrFile = SzFile;
+    Ofn.nMaxFile = sizeof(SzFile) / sizeof(wchar_t);
+    Ofn.lpstrFilter = *WindowsFilter;
+    Ofn.nFilterIndex = 1;
+    Ofn.lpstrTitle = *DialogTitle;
+    Ofn.lpstrInitialDir = CleanDefaultPath.IsEmpty() ? nullptr : *CleanDefaultPath;
+    Ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+    if (GetOpenFileNameW(&Ofn))
+    {
+        OutSelectedFilePath = FString(SzFile);
+        return true;
+    }
+#endif
+
+    return false;
+}
+
 UTexture2D* UScrapbookingFunctionLibrary::LoadPNGViaFileDialog( FString DialogTitle )
 {
-    IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-    if (!DesktopPlatform) return nullptr;
+    FString SelectedFilePath;
+    bool bOpened = false;
 
-    const void* ParentWindowHandle = FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr);
-    TArray<FString> OpenFilenames;
+#if PLATFORM_WINDOWS
+    OPENFILENAMEW Ofn;
+    wchar_t SzFile[MAX_PATH] = { 0 };
 
-    bool bOpened = DesktopPlatform->OpenFileDialog(
-        const_cast<void*>(ParentWindowHandle),
-        DialogTitle,
-        TEXT(""),
-        TEXT(""),
-        TEXT("PNG Image (*.png)|*.png"),
-        EFileDialogFlags::None,
-        OpenFilenames
-    );
+    // Win32 API filter format: Description\0Pattern\0\0
+    const wchar_t Filter[] = L"PNG Image (*.png)\0*.png\0";
 
-    if (!bOpened || OpenFilenames.Num() <= 0 )
+    // Grab the active window handle so the dialog blocks input properly
+    HWND HwndParent = nullptr;
+    if (FSlateApplication::IsInitialized() && FSlateApplication::Get().GetActiveTopLevelWindow().IsValid())
+    {
+        TSharedPtr<FGenericWindow> NativeWindow = FSlateApplication::Get().GetActiveTopLevelWindow()->GetNativeWindow();
+        if (NativeWindow.IsValid())
+        {
+            HwndParent = static_cast<HWND>(NativeWindow->GetOSWindowHandle());
+        }
+    }
+
+    ZeroMemory(&Ofn, sizeof(Ofn));
+    Ofn.lStructSize = sizeof(Ofn);
+    Ofn.hwndOwner = HwndParent;
+    Ofn.lpstrFile = SzFile;
+    Ofn.nMaxFile = sizeof(SzFile) / sizeof(wchar_t);
+    Ofn.lpstrFilter = Filter;
+    Ofn.nFilterIndex = 1;
+    Ofn.lpstrTitle = *DialogTitle;
+    Ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+    if (GetOpenFileNameW(&Ofn))
+    {
+        SelectedFilePath = FString(SzFile);
+        bOpened = true;
+    }
+#endif
+
+    if (!bOpened || SelectedFilePath.IsEmpty())
     {
         return nullptr;
     }
 
-    UTexture2D* NewTexture = FImageUtils::ImportFileAsTexture2D(OpenFilenames[0]);
+    UTexture2D* NewTexture = FImageUtils::ImportFileAsTexture2D(SelectedFilePath);
     return NewTexture;
 }

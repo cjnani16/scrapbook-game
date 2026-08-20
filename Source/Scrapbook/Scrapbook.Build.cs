@@ -28,7 +28,6 @@ public class Scrapbook : ModuleRules
             "GeometryAlgorithms",
             "GeometryFramework",
             "ProceduralMeshComponent",
-            "DesktopPlatform",
 			"DynamicMesh",
             "ModelingComponents",
             "GeometryScriptingCore"

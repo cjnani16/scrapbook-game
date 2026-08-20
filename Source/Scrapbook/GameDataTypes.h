@@ -34,11 +34,11 @@ struct FEvidenceTrait
 	GENERATED_BODY()
 
 public:
-	FEvidenceTrait() : Type(EEvidenceTraitType::NONE), Magnitude(0) {};
-	FEvidenceTrait(EEvidenceTraitType T, int M) : Type(T), Magnitude(M) {};
+	FEvidenceTrait() : TypeName("[None]"), Magnitude(0) {};
+	FEvidenceTrait(FName T, int M) : TypeName(T), Magnitude(M) {};
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	EEvidenceTraitType Type;
+	FName TypeName;
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	int Magnitude;
@@ -51,7 +51,7 @@ struct FScrapbookArea
 	GENERATED_BODY()
 
 public:
-	FScrapbookArea() : Name(""), Position(0, 0), Size(0, 0) {};
+	FScrapbookArea() : Name(), Position(0, 0), Size(0, 0) {};
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FString Name;
@@ -72,7 +72,7 @@ struct FScrapbookPage
 	GENERATED_BODY()
 
 public:
-	FScrapbookPage() : Art(nullptr), Name(""), Areas({}) {};
+	FScrapbookPage() : Art(nullptr), Name(), Areas({}) {};
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	TObjectPtr<UMaterialInterface> Art;
@@ -104,6 +104,7 @@ enum class EEvidenceTraitInteractionType : uint8
 {
 	NONE,
 	Conversion, // A converts X % of B to C
+	Combination, // A X and B Y become C X+Y
 };
 
 USTRUCT(BlueprintType)
@@ -114,21 +115,21 @@ struct FEvidenceTraitInteraction
 public:
 	FEvidenceTraitInteraction() : 
 		InteractionType(EEvidenceTraitInteractionType::NONE), 
-		InputTypeA(EEvidenceTraitType::NONE), 
-		InputTypeB(EEvidenceTraitType::NONE), 
-		OutputTypeC(EEvidenceTraitType::NONE) {};
+		InputTypeNameA("[None]"),
+		InputTypeNameB("[None]"),
+		OutputTypeNameC("[None]") {};
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	EEvidenceTraitInteractionType InteractionType;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	EEvidenceTraitType InputTypeA;
+	FName InputTypeNameA;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	EEvidenceTraitType InputTypeB;
+	FName InputTypeNameB;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	EEvidenceTraitType OutputTypeC;
+	FName OutputTypeNameC;
 };
 
 
@@ -149,4 +150,34 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FVector Location;
+};
+
+USTRUCT(BlueprintType)
+struct FEvidenceSet
+{
+	GENERATED_BODY()
+
+public:
+	FEvidenceSet() : Evidence(), Traits() {};
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	TSet<AActor*> Evidence;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	TArray<FEvidenceTrait> Traits;
+};
+
+USTRUCT(BlueprintType)
+struct FJurorData
+{
+	GENERATED_BODY()
+
+public:
+	FJurorData() : Name(), TraitMultipliers() {};
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FName Name;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	TMap<FName, float> TraitMultipliers;
 };

@@ -65,7 +65,7 @@ public:
 	static TArray<AActor*> ActorLocationSort(const TArray<AActor*>& Array);
 	
 	UFUNCTION(BlueprintCallable)
-	static TArray<FEvidenceTrait> GetTraitProductsFromInteractions( const TArray<FEvidenceTrait>& A, const TArray<FEvidenceTrait>& B, const TArray<FEvidenceTraitInteraction>& Rules, const FVector& Location, TArray<FEvidenceTraitInteractionResult>& RuleApplicationResults );
+	static TArray<FEvidenceTrait> GetTraitProductsFromInteractions( const TArray<FEvidenceTrait>& A, const TArray<FEvidenceTrait>& B, AActor* ActorA, AActor* ActorB, const TArray<FEvidenceTraitInteraction>& Rules, const FVector& Location, UPARAM(ref) TArray<FEvidenceSet>& EvidenceSets, TArray<FEvidenceTraitInteractionResult>& RuleApplicationResults );
 
 	UFUNCTION(BlueprintCallable)
 	static TArray<FEvidenceTrait> SumTraits( const TArray<FEvidenceTrait>& Input );
