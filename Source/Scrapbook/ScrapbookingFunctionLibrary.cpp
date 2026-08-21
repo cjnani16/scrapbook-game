@@ -11,6 +11,7 @@
 
 // Proc mesh
 #include "ProceduralMeshComponent.h"
+#include "Drawing/LineSetComponent.h"
 
 // GeometryCore
 #include "Curve/GeneralPolygon2.h"
@@ -180,8 +181,10 @@ void UScrapbookingFunctionLibrary::DebugDrawPageNormalizationResult(
 }
 
 // Simple debug draw for a path, shows while cutting
-void UScrapbookingFunctionLibrary::DebugDrawPath(const UObject* WorldContextObject, const TArray<FVector>& PathPoints)
+void UScrapbookingFunctionLibrary::DebugDrawPath(const UObject* WorldContextObject, const TArray<FVector>& PathPoints, ULineSetComponent* LineSetComponent)
 {
+    LineSetComponent->Clear();
+
     if (PathPoints.Num() < 2)
     {
         return;
@@ -193,19 +196,32 @@ void UScrapbookingFunctionLibrary::DebugDrawPath(const UObject* WorldContextObje
         return;
     }
 
+    const FTransform& ComponentTransform = LineSetComponent->GetComponentTransform();
     for (int32 i = 0; i < PathPoints.Num() - 1; ++i)
     {
-        DrawDebugLine(
-            World,
-            PathPoints[i] + 5 * FVector::UpVector,
-            PathPoints[i + 1] + 5 * FVector::UpVector,
-            FColor::Green,
-            false,  // Persistent
-            0.0f,   // Lifetime: one frame
-            0,      // Depth priority
-            5.0f    // Thickness
-        );
+        //DrawDebugLine(
+        //    World,
+        //    PathPoints[i] + 5 * FVector::UpVector,
+        //    PathPoints[i + 1] + 5 * FVector::UpVector,
+        //    FColor::Green,
+        //    false,  // Persistent
+        //    0.0f,   // Lifetime: one frame
+        //    0,      // Depth priority
+        //    5.0f    // Thickness
+        //);
+
+        FVector WorldStart = PathPoints[i] + 5.0f * FVector::UpVector;
+        FVector WorldEnd = PathPoints[i + 1] + 5.0f * FVector::UpVector;
+
+        FVector LocalStart = ComponentTransform.InverseTransformPosition(WorldStart);
+        FVector LocalEnd = ComponentTransform.InverseTransformPosition(WorldEnd);
+
+        FColor Color = FColor::Green;
+        float Thick = 5.0f;
+        float Bias = 0.0f; // 0 means standard depth sorting
+        LineSetComponent->AddLine(LocalStart, LocalEnd, Color, Thick, Bias);
     }
+    LineSetComponent->MarkRenderStateDirty();
 }
 
 // Simpler way to debug draw the page data
@@ -1078,6 +1094,36 @@ TArray<FEvidenceTrait> UScrapbookingFunctionLibrary::SumTraits(const TArray<FEvi
     }
 
     return Result;
+}
+
+void UScrapbookingFunctionLibrary::DoJurorScoring( const int Threshold, const TArray<FJurorData>& Jurors, const TArray<FEvidenceTrait>& Traits, TArray<float>& Scores, TArray<float>& ReactionScales, bool& AllPassed )
+{
+    Scores.Empty();
+    ReactionScales.Init(0, Jurors.Num());
+
+    AllPassed = false;
+    for (int i = 0; i < Jurors.Num(); ++i)
+    {
+        auto& Juror = Jurors[i];
+        float Score = 0;
+
+        for (auto& Trait : Traits)
+        {
+            const float* Multiplier = Juror.TraitMultipliers.Find(Trait.TypeName);
+            if ( Multiplier )
+            {
+                Score += *Multiplier * Trait.Magnitude;
+                ReactionScales[i] = FMath::Max(ReactionScales[i], *Multiplier);
+            }
+        }
+        
+        if (FMath::RoundToInt(Score) < Threshold)
+        {
+            AllPassed = false;
+        }
+
+        Scores.Add(Score);
+    }
 }
 
 // ============================

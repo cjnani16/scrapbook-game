@@ -8,6 +8,7 @@
 
 class UDynamicMesh;
 class UStaticMeshComponent;
+class ULineSetComponent;
 struct FScrapbookPage;
 
 /**
@@ -21,7 +22,7 @@ class SCRAPBOOK_API UScrapbookingFunctionLibrary : public UBlueprintFunctionLibr
 public:
 	// Debug stuff
 	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContextObject"))
-	static void DebugDrawPath(const UObject* WorldContextObject, const TArray<FVector>& PathPoints);
+	static void DebugDrawPath(const UObject* WorldContextObject, const TArray<FVector>& PathPoints, ULineSetComponent* LineSetComponent);
 
 	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContextObject"))
 	static void DebugDrawPageAreas(const UObject* WorldContextObject, const FTransform& PageComponentTransform, const FVector& PageLocalMin, const FVector& PageLocalMax, const FScrapbookPage& Page);
@@ -69,6 +70,9 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	static TArray<FEvidenceTrait> SumTraits( const TArray<FEvidenceTrait>& Input );
+
+	UFUNCTION(BlueprintCallable)
+	static void DoJurorScoring( const int Threshold, const TArray<FJurorData>& Jurors, const TArray<FEvidenceTrait>& Traits, TArray<float>& Scores, TArray<float>& ReactionScales, bool& AllPassed );
 
 	// Editor stuff
 	UFUNCTION(BlueprintCallable)

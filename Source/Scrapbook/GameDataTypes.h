@@ -3,6 +3,10 @@
 #include "ProceduralMeshComponent.h"
 #include "GameDataTypes.generated.h"
 
+/**
+** Gameplay Stuff
+**/
+
 UENUM(BlueprintType)
 enum class EEvidenceTraitType : uint8
 {
@@ -168,7 +172,7 @@ public:
 };
 
 USTRUCT(BlueprintType)
-struct FJurorData
+struct FJurorData : public FTableRowBase
 {
 	GENERATED_BODY()
 
@@ -180,4 +184,113 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	TMap<FName, float> TraitMultipliers;
+};
+
+//// Types below are imported from Book of Bark!
+
+/**
+** Sound stuff
+**/
+
+USTRUCT(BlueprintType)
+struct FSoundReference : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	// The metasound asset to play
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	USoundBase* Sound;
+};
+
+
+/**
+** Character / Narrative Stuff
+**/
+
+UENUM(BlueprintType)
+enum class ECharacterEmotion : uint8
+{
+	NONE,
+	Neutral,
+	Happy,
+	Sad,
+	Surprise,
+	Question,
+	Greeting
+};
+
+// Character name + each portrait with an emotion
+USTRUCT(BlueprintType)
+struct FCharacterData : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FText Description;
+
+	// We don't have skeletal meshes for chars yet so I'm using static meshes -- use SKM when we can!
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UStaticMesh* StaticMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	USkeletalMesh* SkeletalMesh;
+
+	// Emotions used in Dialogue Data should match the ones here
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TMap<ECharacterEmotion, USoundBase*> EmotionsToSounds;
+
+	// Bio entries that are locked behind progression facts (Exist check the fact, ignore value)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TMap<FName, FString> ProgressionFactsToBios;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UTexture2D* Texture;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UTexture2D* TextureProfile;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UTexture2D* TextureProfileColorless;
+};
+
+// Writing
+USTRUCT(BlueprintType)
+struct FDialogueLineData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FName Speaker;
+
+	// There should be a matching texture for this in the Speaker's Character Data
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	ECharacterEmotion Emotion;
+
+	// There should be a matching sound for this in the Speaker's Character Data
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	ECharacterEmotion SoundEmotion;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FText Text;
+
+	// When this line plays, the following progression facts will be set tot he given values.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TMap<FName, FString> ProgressionFactsToSet;
+};
+
+USTRUCT(BlueprintType)
+struct FDialogueData : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	// There should be a matching texture for this name in the Speaker's Character Data
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TArray<FDialogueLineData> Lines;
+
+	// After this dialogue plays its last line, choices here will be shown to the player as buttons that will then play their respective named dialogue when clicked
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TMap<FString, FName> ChoicesToDialogueNames;
 };
