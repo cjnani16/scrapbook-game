@@ -210,7 +210,6 @@ struct FSoundReference : public FTableRowBase
 UENUM(BlueprintType)
 enum class ECharacterEmotion : uint8
 {
-	NONE,
 	Neutral,
 	Happy,
 	Sad,
@@ -228,32 +227,19 @@ struct FCharacterData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	FName Name;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FText Description;
-
-	// We don't have skeletal meshes for chars yet so I'm using static meshes -- use SKM when we can!
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	UStaticMesh* StaticMesh;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	USkeletalMesh* SkeletalMesh;
-
 	// Emotions used in Dialogue Data should match the ones here
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TMap<ECharacterEmotion, USoundBase*> EmotionsToSounds;
 
-	// Bio entries that are locked behind progression facts (Exist check the fact, ignore value)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TMap<ECharacterEmotion, UTexture2D*> EmotionsToTextures;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UTexture2D* InWorldTexture;
+
+	// Bio entries that are locked behind progression facts (We'll just exist check the fact, ignore value)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TMap<FName, FString> ProgressionFactsToBios;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	UTexture2D* Texture;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	UTexture2D* TextureProfile;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	UTexture2D* TextureProfileColorless;
 };
 
 // Writing
