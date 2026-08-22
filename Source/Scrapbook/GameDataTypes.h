@@ -210,6 +210,7 @@ struct FSoundReference : public FTableRowBase
 UENUM(BlueprintType)
 enum class ECharacterEmotion : uint8
 {
+	NONE,
 	Neutral,
 	Happy,
 	Sad,
