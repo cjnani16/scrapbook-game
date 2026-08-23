@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dialogue Writing Tool</title>
+    <style>
+        :root {
+            --bg-base: #1e1e20;
+            --bg-panel: #252526;
+            --bg-element: #333333;
+            --bg-hover: #444444;
+            --accent: #007acc;
+            --accent-hover: #005f9e;
+            --danger: #cc3333;
+            --text-main: #d4d4d4;
+            --text-muted: #888888;
+            --border: #3e3e42;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--bg-base); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Header */
+        header { background-color: var(--bg-panel); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        header h1 { font-size: 18px; font-weight: 600; }
+        .header-actions button { margin-left: 10px; }
+
+        /* Layout */
+        #app-container { display: flex; flex: 1; overflow: hidden; }
+
+        /* Sidebar */
+        #sidebar { width: 280px; background-color: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+        .sidebar-header { padding: 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        #dialogue-list { flex: 1; overflow-y: auto; list-style: none; }
+        .dialogue-item { padding: 10px 15px; cursor: pointer; border-left: 3px solid transparent; border-bottom: 1px solid var(--border); transition: 0.1s; display: flex; justify-content: space-between; align-items: center; }
+        .dialogue-item:hover { background-color: var(--bg-element); }
+        .dialogue-item.active { background-color: var(--bg-element); border-left-color: var(--accent); }
+        .delete-dialogue-btn { color: var(--danger); background: none; border: none; cursor: pointer; padding: 2px 5px; border-radius: 3px; }
+        .delete-dialogue-btn:hover { background-color: #552222; }
+
+        /* Main Editor */
+        #editor { flex: 1; overflow-y: auto; padding: 20px 40px; }
+        .empty-state { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 1.2rem; }
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: bold; color: var(--text-muted); text-transform: uppercase; }
+        
+        /* Inputs & Buttons */
+        input[type="text"], textarea, select { width: 100%; background-color: var(--bg-element); color: var(--text-main); border: 1px solid var(--border); padding: 8px; border-radius: 4px; outline: none; }
+        input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--accent); }
+        textarea { resize: vertical; min-height: 80px; }
+        
+        button { background-color: var(--bg-element); color: var(--text-main); border: 1px solid var(--border); padding: 6px 12px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
+        button:hover { background-color: var(--bg-hover); }
+        button.primary { background-color: var(--accent); border-color: var(--accent); color: white; }
+        button.primary:hover { background-color: var(--accent-hover); }
+        button.danger { background-color: transparent; color: var(--danger); border-color: var(--danger); }
+        button.danger:hover { background-color: var(--danger); color: white; }
+        
+        /* Sections */
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px solid var(--border); }
+        .section-header h2 { font-size: 16px; color: var(--accent); }
+
+        /* Line Cards */
+        .line-card { background-color: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 15px; margin-bottom: 15px; position: relative; }
+        .line-header { display: flex; gap: 10px; margin-bottom: 10px; }
+        .line-header > div { flex: 1; }
+        .line-controls { display: flex; justify-content: flex-end; gap: 5px; margin-top: 10px; }
+        .line-controls button { font-size: 12px; padding: 4px 8px; }
+
+        /* Key Value Lists (Facts & Choices) */
+        .kv-list { margin-top: 10px; background-color: #1a1a1c; padding: 10px; border-radius: 4px; border: 1px dashed var(--border); }
+        .kv-item { display: flex; gap: 10px; margin-bottom: 5px; align-items: center; }
+        .kv-item input { flex: 1; }
+        .kv-item button { padding: 4px 8px; }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Dialogue Writing Tool</h1>
+        <div class="header-actions">
+            <input type="file" id="import-file" accept=".json" style="display: none;">
+            <button onclick="document.getElementById('import-file').click()">Import JSON</button>
+            <button class="primary" onclick="exportData()">Export JSON</button>
+        </div>
+    </header>
+
+    <div id="app-container">
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <h3>Dialogues</h3>
+                <button class="primary" onclick="addDialogue()">+ Add</button>
+            </div>
+            <ul id="dialogue-list">
+                <!-- Dialogue items render here -->
+            </ul>
+        </aside>
+
+        <main id="editor">
+            <!-- Editor content renders here -->
+        </main>
+    </div>
+
+    <script>
+        // --- Data Definitions ---
+        const EMOTIONS = ["NONE", "Neutral", "Happy", "Sad", "Surprise", "Question", "Greeting"];
+        const DEFAULT_NS = "[64AA42C812747D24EDF15615704E7B5F]";
+        
+        let appData = [];
+        let activeIndex = -1;
+
+        // --- Helpers ---
+        function generateUEId() {
+            return [...Array(32)].map(() => Math.floor(Math.random() * 16).toString(16).toUpperCase()).join('');
+        }
+
+        // Parses UE5's NSLOCTEXT into plain string and ID components
+        function parseFText(ftext) {
+            const match = ftext.match(/NSLOCTEXT\("([^"]+)",\s*"([^"]+)",\s*"(.*)"\)/);
+            if (match) {
+                return { 
+                    ns: match[1], 
+                    key: match[2], 
+                    // Unescape quotes that UE requires
+                    text: match[3].replace(/\\"/g, '"').replace(/\\'/g, "'") 
+                };
+            }
+            return { ns: DEFAULT_NS, key: generateUEId(), text: ftext };
+        }
+
+        function createEmptyDialogue(name = "NewDialogue") {
+            return {
+                Name: name,
+                Lines: [],
+                Choices: [] // Mapped from ChoicesToDialogueNames
+            };
+        }
+
+        function createEmptyLine() {
+            return {
+                Speaker: "Narrator",
+                Emotion: "Neutral",
+                SoundEmotion: "NONE",
+                Text: "",
+                FTextNamespace: DEFAULT_NS,
+                FTextKey: generateUEId(),
+                ProgressionFacts: []
+            };
+        }
+
+        // --- Core Functions ---
+        function init() {
+            if (appData.length === 0) {
+                appData.push(createEmptyDialogue("TutorialStart"));
+                activeIndex = 0;
+            }
+            renderSidebar();
+            renderEditor();
+        }
+
+        // --- Rendering ---
+        function renderSidebar() {
+            const list = document.getElementById('dialogue-list');
+            list.innerHTML = '';
+            appData.forEach((diag, index) => {
+                const li = document.createElement('li');
+                li.className = `dialogue-item ${index === activeIndex ? 'active' : ''}`;
+                li.onclick = () => { activeIndex = index; renderSidebar(); renderEditor(); };
+                
+                li.innerHTML = `
+                    <span>${diag.Name}</span>
+                    <button class="delete-dialogue-btn" onclick="deleteDialogue(event, ${index})">✕</button>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        function renderEditor() {
+            const editor = document.getElementById('editor');
+            if (activeIndex === -1 || !appData[activeIndex]) {
+                editor.innerHTML = '<div class="empty-state">Select or create a dialogue to start writing.</div>';
+                return;
+            }
+
+            const diag = appData[activeIndex];
+            
+            let html = `
+                <div class="form-group">
+                    <label>Dialogue Row Name</label>
+                    <input type="text" value="${diag.Name}" onchange="updateDialogueName(this.value)">
+                </div>
+
+                <div class="section-header">
+                    <h2>Dialogue Lines</h2>
+                    <button class="primary" onclick="addLine()">+ Add Line</button>
+                </div>
+                <div id="lines-container">
+            `;
+
+            diag.Lines.forEach((line, lIndex) => {
+                html += `
+                    <div class="line-card">
+                        <div class="line-header">
+                            <div>
+                                <label>Speaker (FName)</label>
+                                <input type="text" value="${line.Speaker}" onchange="updateLine(${lIndex}, 'Speaker', this.value)">
+                            </div>
+                            <div>
+                                <label>Emotion</label>
+                                <select onchange="updateLine(${lIndex}, 'Emotion', this.value)">
+                                    ${EMOTIONS.map(e => `<option value="${e}" ${line.Emotion === e ? 'selected' : ''}>${e}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label>Sound Emotion</label>
+                                <select onchange="updateLine(${lIndex}, 'SoundEmotion', this.value)">
+                                    ${EMOTIONS.map(e => `<option value="${e}" ${line.SoundEmotion === e ? 'selected' : ''}>${e}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Line Text</label>
+                            <textarea onchange="updateLine(${lIndex}, 'Text', this.value)">${line.Text}</textarea>
+                        </div>
+                        
+                        <!-- Progression Facts -->
+                        <div class="kv-list">
+                            <label style="margin-bottom:8px;">Progression Facts To Set</label>
+                            ${line.ProgressionFacts.map((fact, fIndex) => `
+                                <div class="kv-item">
+                                    <input type="text" placeholder="Fact Name (FName)" value="${fact.k}" onchange="updateFact(${lIndex}, ${fIndex}, 'k', this.value)">
+                                    <input type="text" placeholder="Value (FString)" value="${fact.v}" onchange="updateFact(${lIndex}, ${fIndex}, 'v', this.value)">
+                                    <button class="danger" onclick="removeFact(${lIndex}, ${fIndex})">✕</button>
+                                </div>
+                            `).join('')}
+                            <button style="margin-top: 5px; font-size: 11px;" onclick="addFact(${lIndex})">+ Add Fact</button>
+                        </div>
+
+                        <div class="line-controls">
+                            <button onclick="moveLine(${lIndex}, -1)" ${lIndex === 0 ? 'disabled' : ''}>↑ Move Up</button>
+                            <button onclick="moveLine(${lIndex}, 1)" ${lIndex === diag.Lines.length - 1 ? 'disabled' : ''}>↓ Move Down</button>
+                            <button class="danger" onclick="removeLine(${lIndex})">Delete Line</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                </div>
+                <div class="section-header">
+                    <h2>Player Choices (End of Dialogue)</h2>
+                    <button class="primary" onclick="addChoice()">+ Add Choice</button>
+                </div>
+                <div class="kv-list" style="margin-bottom: 50px;">
+            `;
+
+            if (diag.Choices.length === 0) {
+                html += `<div style="color:var(--text-muted); font-size:12px; margin-bottom:10px;">No choices. Dialogue will just end.</div>`;
+            }
+
+            diag.Choices.forEach((choice, cIndex) => {
+                html += `
+                    <div class="kv-item">
+                        <input type="text" placeholder="Choice Text shown to player" value="${choice.k}" onchange="updateChoice(${cIndex}, 'k', this.value)">
+                        <input type="text" placeholder="Next Dialogue Name (FName)" value="${choice.v}" onchange="updateChoice(${cIndex}, 'v', this.value)">
+                        <button class="danger" onclick="removeChoice(${cIndex})">✕</button>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            editor.innerHTML = html;
+        }
+
+        // --- Data Mutations ---
+        function addDialogue() {
+            appData.push(createEmptyDialogue(`Dialogue_${appData.length + 1}`));
+            activeIndex = appData.length - 1;
+            renderSidebar();
+            renderEditor();
+        }
+
+        function deleteDialogue(e, index) {
+            e.stopPropagation();
+            if(confirm("Delete this dialogue row?")) {
+                appData.splice(index, 1);
+                activeIndex = appData.length > 0 ? 0 : -1;
+                renderSidebar();
+                renderEditor();
+            }
+        }
+
+        function updateDialogueName(val) {
+            appData[activeIndex].Name = val;
+            renderSidebar();
+        }
+
+        function addLine() {
+            appData[activeIndex].Lines.push(createEmptyLine());
+            renderEditor();
+            // Scroll to bottom
+            const editor = document.getElementById('editor');
+            editor.scrollTop = editor.scrollHeight;
+        }
+
+        function removeLine(lIndex) {
+            appData[activeIndex].Lines.splice(lIndex, 1);
+            renderEditor();
+        }
+
+        function moveLine(lIndex, dir) {
+            const lines = appData[activeIndex].Lines;
+            if (lIndex + dir < 0 || lIndex + dir >= lines.length) return;
+            const temp = lines[lIndex];
+            lines[lIndex] = lines[lIndex + dir];
+            lines[lIndex + dir] = temp;
+            renderEditor();
+        }
+
+        function updateLine(lIndex, field, value) {
+            appData[activeIndex].Lines[lIndex][field] = value;
+        }
+
+        // Facts
+        function addFact(lIndex) {
+            appData[activeIndex].Lines[lIndex].ProgressionFacts.push({k: "", v: ""});
+            renderEditor();
+        }
+        function updateFact(lIndex, fIndex, field, value) {
+            appData[activeIndex].Lines[lIndex].ProgressionFacts[fIndex][field] = value;
+        }
+        function removeFact(lIndex, fIndex) {
+            appData[activeIndex].Lines[lIndex].ProgressionFacts.splice(fIndex, 1);
+            renderEditor();
+        }
+
+        // Choices
+        function addChoice() {
+            appData[activeIndex].Choices.push({k: "", v: ""});
+            renderEditor();
+        }
+        function updateChoice(cIndex, field, value) {
+            appData[activeIndex].Choices[cIndex][field] = value;
+        }
+        function removeChoice(cIndex) {
+            appData[activeIndex].Choices.splice(cIndex, 1);
+            renderEditor();
+        }
+
+        // --- Import / Export ---
+        function exportData() {
+            const ueFormat = appData.map(diag => {
+                const lines = diag.Lines.map(line => {
+                    const factsMap = {};
+                    line.ProgressionFacts.forEach(f => {
+                        if (f.k.trim() !== "") factsMap[f.k] = f.v;
+                    });
+                    
+                    // Escape quotes for UE C++ syntax mapping inside JSON string
+                    const escapedText = line.Text.replace(/"/g, '\\"').replace(/'/g, "\\'");
+                    
+                    return {
+                        Speaker: line.Speaker,
+                        Emotion: line.Emotion,
+                        SoundEmotion: line.SoundEmotion,
+                        Text: `NSLOCTEXT("${line.FTextNamespace}", "${line.FTextKey}", "${escapedText}")`,
+                        ProgressionFactsToSet: factsMap
+                    };
+                });
+
+                const choicesMap = {};
+                diag.Choices.forEach(c => {
+                    if (c.k.trim() !== "") choicesMap[c.k] = c.v;
+                });
+
+                return {
+                    Name: diag.Name,
+                    Lines: lines,
+                    ChoicesToDialogueNames: choicesMap
+                };
+            });
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(ueFormat, null, 4));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", "DialogueData.json");
+            dlAnchorElem.click();
+        }
+
+        document.getElementById('import-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    
+                    appData = json.map(diag => {
+                        const parsedLines = (diag.Lines || []).map(line => {
+                            const parsedText = parseFText(line.Text || "");
+                            
+                            const facts = [];
+                            if (line.ProgressionFactsToSet) {
+                                for (let k in line.ProgressionFactsToSet) {
+                                    facts.push({k: k, v: line.ProgressionFactsToSet[k]});
+                                }
+                            }
+
+                            return {
+                                Speaker: line.Speaker || "Narrator",
+                                Emotion: line.Emotion || "Neutral",
+                                SoundEmotion: line.SoundEmotion || "NONE",
+                                Text: parsedText.text,
+                                FTextNamespace: parsedText.ns,
+                                FTextKey: parsedText.key,
+                                ProgressionFacts: facts
+                            };
+                        });
+
+                        const choices = [];
+                        if (diag.ChoicesToDialogueNames) {
+                            for (let k in diag.ChoicesToDialogueNames) {
+                                choices.push({k: k, v: diag.ChoicesToDialogueNames[k]});
+                            }
+                        }
+
+                        return {
+                            Name: diag.Name || "ImportedDialogue",
+                            Lines: parsedLines,
+                            Choices: choices
+                        };
+                    });
+                    
+                    activeIndex = appData.length > 0 ? 0 : -1;
+                    renderSidebar();
+                    renderEditor();
+                } catch (err) {
+                    alert("Error parsing JSON file: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = null; // Reset input
+        });
+
+        // Start app
+        init();
+    </script>
+</body>
+</html>
