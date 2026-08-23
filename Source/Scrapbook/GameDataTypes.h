@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ProceduralMeshComponent.h"
+#include "GameFramework/SaveGame.h"
 #include "GameDataTypes.generated.h"
 
 /**
@@ -79,7 +80,7 @@ public:
 	FScrapbookPage() : Art(nullptr), Name(), Areas({}) {};
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	TObjectPtr<UMaterialInterface> Art;
+	TObjectPtr<UTexture2D> Art;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FString Name;
@@ -280,4 +281,43 @@ struct FDialogueData : public FTableRowBase
 	// After this dialogue plays its last line, choices here will be shown to the player as buttons that will then play their respective named dialogue when clicked
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TMap<FString, FName> ChoicesToDialogueNames;
+};
+
+USTRUCT(BlueprintType)
+struct FEvidenceData : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	// Also used as the progression fact to check to determine if this is unlocked
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FName EvidenceName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FScrapbookPage PageData;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	int Tab;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FVector2D Position;
+};
+
+USTRUCT(BlueprintType)
+struct FGameProgressionData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite)
+	TMap<FName, FString> ProgressionFacts;
+};
+
+// Save Data
+UCLASS(BlueprintType)
+class SCRAPBOOK_API UScrapbookSaveGame : public USaveGame
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(VisibleAnywhere)
+	FGameProgressionData ProgressionData;
 };

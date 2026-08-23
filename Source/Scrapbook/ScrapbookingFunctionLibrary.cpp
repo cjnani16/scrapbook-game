@@ -4,6 +4,8 @@
 #include "ScrapbookingFunctionLibrary.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "GameDataTypes.h"
+#include "Kismet/GameplayStatics.h"
+#include "ScrapbookGameMode.h"
 
 // Math utils
 #include "Math/Box2D.h"
@@ -47,6 +49,76 @@
 #include <windows.h>
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
+
+// ============================
+//*****************************
+// Progression stuff
+//*****************************
+// ============================
+
+const FString DEFAULT_SAVE_SLOT = "Default";
+
+UScrapbookSaveGame* UScrapbookingFunctionLibrary::CurrentSave = nullptr;
+
+bool UScrapbookingFunctionLibrary::GetSaveData(FGameProgressionData& OutData)
+{
+    if (CurrentSave)
+    {
+        OutData = CurrentSave->ProgressionData;
+        return true;
+    }
+
+    TArray<uint8> dataRaw;
+    if (UGameplayStatics::LoadDataFromSlot(dataRaw, DEFAULT_SAVE_SLOT, 0))
+    {
+        if (auto* data = Cast<UScrapbookSaveGame>(UGameplayStatics::LoadGameFromMemory(dataRaw)))
+        {
+            data->AddToRoot();
+            CurrentSave = data;
+            OutData = data->ProgressionData;
+            return true;
+        }
+    }
+    return false;
+}
+
+void UScrapbookingFunctionLibrary::SetSaveData(const FGameProgressionData& NewData)
+{
+    if (!CurrentSave)
+    {
+        CurrentSave = Cast<UScrapbookSaveGame>(UGameplayStatics::CreateSaveGameObject(UScrapbookSaveGame::StaticClass()));
+        CurrentSave->AddToRoot();
+    }
+
+    CurrentSave->ProgressionData = NewData;
+    const bool success = UGameplayStatics::SaveGameToSlot(CurrentSave, DEFAULT_SAVE_SLOT, 0);
+    ensureMsgf(success, TEXT("Failed to save game!"));
+}
+
+void UScrapbookingFunctionLibrary::ClearSaveData()
+{
+    SetSaveData(FGameProgressionData());
+}
+
+void UScrapbookingFunctionLibrary::SetProgressionFactValue(const UObject* WorldContextObject, const FName Fact, const FString& Value)
+{
+    FGameProgressionData data;
+    GetSaveData(data);
+    data.ProgressionFacts.Add(Fact, Value);
+    SetSaveData(data);
+
+    // Alert any triggers
+    Cast<AScrapbookGameMode>(UGameplayStatics::GetGameMode(WorldContextObject))->OnProgressionFactsChanged.Broadcast(Fact, Value, false);
+}
+
+FString UScrapbookingFunctionLibrary::GetProgressionFactValue(const FName Fact, bool& Found)
+{
+    FGameProgressionData data;
+    GetSaveData(data);
+    auto foundFact = data.ProgressionFacts.Find(Fact);
+    Found = foundFact != nullptr;
+    return foundFact ? *foundFact : FString();
+}
 
 // ============================
 //*****************************
@@ -181,7 +253,7 @@ void UScrapbookingFunctionLibrary::DebugDrawPageNormalizationResult(
 }
 
 // Simple debug draw for a path, shows while cutting
-void UScrapbookingFunctionLibrary::DebugDrawPath(const UObject* WorldContextObject, const TArray<FVector>& PathPoints, ULineSetComponent* LineSetComponent)
+void UScrapbookingFunctionLibrary::DebugDrawPath(const UObject* WorldContextObject, const TArray<FVector>& PathPoints, ULineSetComponent* LineSetComponent, const int DotLength, const int GapLength)
 {
     LineSetComponent->Clear();
 
@@ -199,6 +271,12 @@ void UScrapbookingFunctionLibrary::DebugDrawPath(const UObject* WorldContextObje
     const FTransform& ComponentTransform = LineSetComponent->GetComponentTransform();
     for (int32 i = 0; i < PathPoints.Num() - 1; ++i)
     {
+        const int32 PatternLength = DotLength + GapLength;
+        if ((i % PatternLength) >= DotLength)
+        {
+            continue;
+        }
+
         //DrawDebugLine(
         //    World,
         //    PathPoints[i] + 5 * FVector::UpVector,

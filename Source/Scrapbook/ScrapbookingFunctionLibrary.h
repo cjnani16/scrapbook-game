@@ -9,7 +9,9 @@
 class UDynamicMesh;
 class UStaticMeshComponent;
 class ULineSetComponent;
+class UScrapbookSaveGame;
 struct FScrapbookPage;
+struct FGameProgressionData;
 
 /**
  * 
@@ -20,9 +22,25 @@ class SCRAPBOOK_API UScrapbookingFunctionLibrary : public UBlueprintFunctionLibr
 	GENERATED_BODY()
 
 public:
+	// Progression stuff
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	static bool GetSaveData(FGameProgressionData& OutData);
+
+	UFUNCTION(BlueprintCallable)
+	static void SetSaveData(const FGameProgressionData& NewData);
+
+	UFUNCTION(BlueprintCallable)
+	static void ClearSaveData();
+
+	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContextObject"))
+	static void SetProgressionFactValue(const UObject* WorldContextObject, const FName Fact, const FString& Value);
+
+	UFUNCTION(BlueprintCallable)
+	static FString GetProgressionFactValue(const FName Fact, bool& Found);
+
 	// Debug stuff
 	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContextObject"))
-	static void DebugDrawPath(const UObject* WorldContextObject, const TArray<FVector>& PathPoints, ULineSetComponent* LineSetComponent);
+	static void DebugDrawPath(const UObject* WorldContextObject, const TArray<FVector>& PathPoints, ULineSetComponent* LineSetComponent, const int DotLength = 3, const int GapLength = 2);
 
 	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContextObject"))
 	static void DebugDrawPageAreas(const UObject* WorldContextObject, const FTransform& PageComponentTransform, const FVector& PageLocalMin, const FVector& PageLocalMax, const FScrapbookPage& Page);
@@ -95,4 +113,7 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	static UTexture2D* LoadPNGViaFileDialog( FString DialogTitle = TEXT("Select PNG Image"));
+
+private:
+	static UScrapbookSaveGame* CurrentSave;
 };
