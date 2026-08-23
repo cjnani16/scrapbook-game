@@ -178,10 +178,7 @@ struct FJurorData : public FTableRowBase
 	GENERATED_BODY()
 
 public:
-	FJurorData() : Name(), TraitMultipliers() {};
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FName Name;
+	FJurorData() : TraitMultipliers() {};
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	TMap<FName, float> TraitMultipliers;
