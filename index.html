@@ -82,7 +82,7 @@
     <header>
         <h1>Dialogue Writing Tool</h1>
         <div class="header-actions">
-            <input type="file" id="import-file" accept=".json" style="display: none;">
+            <input type="file" id="import-file" accept=".json" multiple style="display: none;">
             <button onclick="document.getElementById('import-file').click()">Import JSON</button>
             <button class="primary" onclick="exportData()">Export JSON</button>
         </div>
@@ -390,61 +390,85 @@
             dlAnchorElem.click();
         }
 
-        document.getElementById('import-file').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+		document.getElementById('import-file').addEventListener('change', async function(e) {
+			// Convert FileList to a standard Array
+			const files = Array.from(e.target.files);
+			if (files.length === 0) return;
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const json = JSON.parse(e.target.result);
-                    
-                    appData = json.map(diag => {
-                        const parsedLines = (diag.Lines || []).map(line => {
-                            const parsedText = parseFText(line.Text || "");
-                            
-                            const facts = [];
-                            if (line.ProgressionFactsToSet) {
-                                for (let k in line.ProgressionFactsToSet) {
-                                    facts.push({k: k, v: line.ProgressionFactsToSet[k]});
-                                }
-                            }
+			try {
+				// Map each file to a Promise that resolves with its mapped data
+				const readPromises = files.map(file => {
+					return new Promise((resolve, reject) => {
+						const reader = new FileReader();
+						
+						reader.onload = function(e) {
+							try {
+								const json = JSON.parse(e.target.result);
+								
+								const parsedFileData = json.map(diag => {
+									const parsedLines = (diag.Lines || []).map(line => {
+										const parsedText = parseFText(line.Text || "");
+										
+										const facts = [];
+										if (line.ProgressionFactsToSet) {
+											for (let k in line.ProgressionFactsToSet) {
+												facts.push({k: k, v: line.ProgressionFactsToSet[k]});
+											}
+										}
 
-                            return {
-                                Speaker: line.Speaker || "Narrator",
-                                Emotion: line.Emotion || "Neutral",
-                                SoundEmotion: line.SoundEmotion || "NONE",
-                                Text: parsedText.text,
-                                FTextNamespace: parsedText.ns,
-                                FTextKey: parsedText.key,
-                                ProgressionFacts: facts
-                            };
-                        });
+										return {
+											Speaker: line.Speaker || "Narrator",
+											Emotion: line.Emotion || "Neutral",
+											SoundEmotion: line.SoundEmotion || "NONE",
+											Text: parsedText.text,
+											FTextNamespace: parsedText.ns,
+											FTextKey: parsedText.key,
+											ProgressionFacts: facts
+										};
+									});
 
-                        const choices = [];
-                        if (diag.ChoicesToDialogueNames) {
-                            for (let k in diag.ChoicesToDialogueNames) {
-                                choices.push({k: k, v: diag.ChoicesToDialogueNames[k]});
-                            }
-                        }
+									const choices = [];
+									if (diag.ChoicesToDialogueNames) {
+										for (let k in diag.ChoicesToDialogueNames) {
+											choices.push({k: k, v: diag.ChoicesToDialogueNames[k]});
+										}
+									}
 
-                        return {
-                            Name: diag.Name || "ImportedDialogue",
-                            Lines: parsedLines,
-                            Choices: choices
-                        };
-                    });
-                    
-                    activeIndex = appData.length > 0 ? 0 : -1;
-                    renderSidebar();
-                    renderEditor();
-                } catch (err) {
-                    alert("Error parsing JSON file: " + err.message);
-                }
-            };
-            reader.readAsText(file);
-            e.target.value = null; // Reset input
-        });
+									return {
+										Name: diag.Name || "ImportedDialogue",
+										Lines: parsedLines,
+										Choices: choices
+									};
+								});
+								
+								resolve(parsedFileData);
+							} catch (err) {
+								reject(new Error(`Error parsing ${file.name}: ${err.message}`));
+							}
+						};
+						
+						reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
+						reader.readAsText(file);
+					});
+				});
+
+				// Wait for all files to be read and parsed
+				const allFilesResults = await Promise.all(readPromises);
+
+				// Promise.all returns an array of arrays. flat() merges them into one single array
+				appData = allFilesResults.flat();
+				
+				activeIndex = appData.length > 0 ? 0 : -1;
+				renderSidebar();
+				renderEditor();
+
+			} catch (err) {
+				// If ANY file fails to parse, the whole import stops and throws an alert
+				alert(err.message);
+			} finally {
+				e.target.value = null; // Reset input
+			}
+		});
 
         // Start app
         init();
