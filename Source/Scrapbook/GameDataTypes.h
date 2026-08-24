@@ -184,6 +184,22 @@ public:
 	TMap<FName, float> TraitMultipliers;
 };
 
+USTRUCT(BlueprintType)
+struct FTagMetadata : public FTableRowBase
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	TObjectPtr<UTexture2D> FullNameArt;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	TObjectPtr<UTexture2D> IconArt;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FLinearColor Color;
+};
+
 //// Types below are imported from Book of Bark!
 
 /**
