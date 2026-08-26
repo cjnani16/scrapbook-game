@@ -294,7 +294,7 @@
         }
 
         function updateDialogueName(val) {
-            appData[activeIndex].Name = val;
+            appData[activeIndex].Name = val.replace(/\s/g, "");
             renderSidebar();
         }
 
@@ -435,7 +435,7 @@
 									}
 
 									return {
-										Name: diag.Name || "ImportedDialogue",
+										Name: diag.Name?.replace(/\s/g, "") || "ImportedDialogue",
 										Lines: parsedLines,
 										Choices: choices
 									};
