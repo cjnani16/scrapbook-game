@@ -274,7 +274,7 @@ struct FDialogueLineData
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	ECharacterEmotion SoundEmotion;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (MultiLine = true))
 	FText Text;
 
 	// When this line plays, the following progression facts will be set tot he given values.
