@@ -313,6 +313,15 @@ struct FEvidenceData : public FTableRowBase
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FVector2D Position;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	int ZSort;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float Rotation;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FName AttachParentEvidence;
 };
 
 USTRUCT(BlueprintType)

@@ -868,6 +868,8 @@ void UScrapbookingFunctionLibrary::GetClippedTraitsFromMeshAndPage(
             }
         }
     }
+
+    ClippedTraits = SumTraits(ClippedTraits);
 }
 
 // I didn't write this helper, but it does layout for the evidence pieces
