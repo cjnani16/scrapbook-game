@@ -252,6 +252,9 @@ struct FCharacterData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	UTexture2D* InWorldTexture;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UTexture2D* NameplateTexture;
+
 	// Bio entries that are locked behind progression facts (We'll just exist check the fact, ignore value)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TMap<FName, FString> ProgressionFactsToBios;
