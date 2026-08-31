@@ -198,6 +198,9 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FLinearColor Color;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	int Tier;
 };
 
 //// Types below are imported from Book of Bark!
