@@ -1202,7 +1202,7 @@ void UScrapbookingFunctionLibrary::DoJurorScoring( const int Threshold, const TA
             AllPassed = false;
         }
 
-        Scores.Add(FMath::RoundToInt(Score));
+        Scores.Add(Score);
     }
 }
 
