@@ -349,3 +349,15 @@ public:
 	UPROPERTY(VisibleAnywhere)
 	FGameProgressionData ProgressionData;
 };
+
+USTRUCT(BlueprintType)
+struct FCreditData : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FText FullName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FText Title;
+};
