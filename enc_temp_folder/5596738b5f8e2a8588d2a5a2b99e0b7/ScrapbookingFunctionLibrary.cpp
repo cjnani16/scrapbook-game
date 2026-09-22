@@ -861,9 +861,8 @@ void UScrapbookingFunctionLibrary::GetClippedTraitsFromMeshAndPage(
 
                 if (Ratio > 0.001f) // Filter out tiny floating-point artifacts
                 {
-                    float UniversalBoost = 1.25f;
                     FEvidenceTrait NewTrait = Area.Trait;
-                    NewTrait.Magnitude = FMath::RoundToInt(Area.Trait.Magnitude * Ratio * UniversalBoost);
+                    NewTrait.Magnitude = FMath::RoundToInt(Area.Trait.Magnitude * Ratio);
                     ClippedTraits.Add(NewTrait);
                 }
             }

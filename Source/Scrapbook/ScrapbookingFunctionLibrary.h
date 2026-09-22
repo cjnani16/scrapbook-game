@@ -12,6 +12,7 @@ class ULineSetComponent;
 class UScrapbookSaveGame;
 struct FScrapbookPage;
 struct FGameProgressionData;
+struct FDialogueData;
 
 /**
  * 
@@ -91,6 +92,17 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	static void DoJurorScoring( const int Threshold, const TArray<FJurorData>& Jurors, const TArray<FEvidenceTrait>& Traits, TArray<float>& Scores, TArray<float>& ReactionScales, bool& AllPassed );
+
+	// Dialogue generation
+	UFUNCTION(BlueprintCallable)
+	static FDialogueData CreateRoundtableDialogue( const TArray<FJurorData>& Jurors, const TArray<FName>& JurorNames, const TArray<FEvidenceTrait>& Traits );
+
+	// Hints
+	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContextObject"))
+	static void SaveJurorHint( const UObject* WorldContextObject, FName JurorName, FString HintText );
+
+	UFUNCTION(BlueprintCallable)
+	static TArray<FString> GetJurorHints( FName JurorName );
 
 	// Editor stuff
 	UFUNCTION(BlueprintCallable)
