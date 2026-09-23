@@ -8,6 +8,7 @@
 
 class UDynamicMesh;
 class UStaticMeshComponent;
+class UCameraComponent;
 class ULineSetComponent;
 class UScrapbookSaveGame;
 struct FScrapbookPage;
@@ -103,6 +104,16 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	static TArray<FString> GetJurorHints( FName JurorName );
+
+	// Tiling calculation for canvas
+	UFUNCTION(BlueprintCallable)
+	static TArray<FTransform> CalculateVisiblePlaneTiles(
+		FVector PlaneOrigin,
+		FVector2D TileSize,
+		float TileScale = 1.0f,
+		UCameraComponent* Camera = nullptr,
+		float MaxDistance = 100000.0f,
+		int32 MaxTiles = 10000);
 
 	// Editor stuff
 	UFUNCTION(BlueprintCallable)

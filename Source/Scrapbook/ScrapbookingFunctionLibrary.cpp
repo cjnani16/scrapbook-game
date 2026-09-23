@@ -6,6 +6,7 @@
 #include "GameDataTypes.h"
 #include "Kismet/GameplayStatics.h"
 #include "ScrapbookGameMode.h"
+#include "Camera/CameraComponent.h"
 
 // Math utils
 #include "Math/Box2D.h"
@@ -871,6 +872,152 @@ void UScrapbookingFunctionLibrary::GetClippedTraitsFromMeshAndPage(
     }
 
     ClippedTraits = SumTraits(ClippedTraits);
+}
+
+TArray<FTransform> UScrapbookingFunctionLibrary::CalculateVisiblePlaneTiles(
+    FVector PlaneOrigin,
+    FVector2D TileSize,
+    float TileScale,
+    UCameraComponent* Camera,
+    float MaxDistance,
+    int32 MaxTiles)
+{
+    TArray<FTransform> TileTransforms;
+
+    // Validation
+    if (!Camera || TileSize.X <= 0.0f || TileSize.Y <= 0.0f || TileScale<= 0.f)
+    {
+        return TileTransforms;
+    }
+
+    FVector CamLoc = Camera->GetComponentLocation();
+
+    // 1. Define Plane Normal (pointing from Plane to Camera)
+    FVector ToCamera = CamLoc - PlaneOrigin;
+    FVector PlaneNormal = ToCamera.GetSafeNormal();
+
+    // Fallback if camera is exactly on the plane origin
+    if (PlaneNormal.IsNearlyZero())
+    {
+        PlaneNormal = -Camera->GetForwardVector();
+    }
+
+    // 2. Define Plane Local Basis Vectors (to figure out Right and Up on the plane's surface)
+    FVector CamUp = Camera->GetUpVector();
+    FVector PlaneRight = FVector::CrossProduct(PlaneNormal, CamUp).GetSafeNormal();
+
+    if (PlaneRight.IsNearlyZero())
+    {
+        // Fallback if camera is looking perfectly up/down relative to normal
+        PlaneRight = FVector::CrossProduct(PlaneNormal, Camera->GetRightVector()).GetSafeNormal();
+    }
+    FVector PlaneUp = FVector::CrossProduct(PlaneRight, PlaneNormal).GetSafeNormal();
+
+    // 3. Determine the Camera Frustum Corners
+    // Unreal uses Horizontal Field of View by default
+    float HalfHorizontalFOV = FMath::DegreesToRadians(Camera->FieldOfView * 0.5f);
+    float W = FMath::Tan(HalfHorizontalFOV);
+    float H = W / FMath::Max(Camera->AspectRatio, 0.001f); // Avoid division by zero
+
+    // Viewport corners in Camera Local Space (X is forward, Y is right, Z is up)
+    FVector FrustumCorners[4] = {
+        FVector(1.0f, W, H).GetSafeNormal(),   // Top Right
+        FVector(1.0f, W, -H).GetSafeNormal(),  // Bottom Right
+        FVector(1.0f, -W, H).GetSafeNormal(),  // Top Left
+        FVector(1.0f, -W, -H).GetSafeNormal()  // Bottom Left
+    };
+
+    FTransform CamTransform = Camera->GetComponentTransform();
+
+    // Min/Max bounds to figure out our local grid 
+    FVector2D MinBounds(TNumericLimits<float>::Max(), TNumericLimits<float>::Max());
+    FVector2D MaxBounds(-TNumericLimits<float>::Max(), -TNumericLimits<float>::Max());
+
+    // 4. Project Frustum Rays onto the Plane
+    for (int32 i = 0; i < 4; ++i)
+    {
+        FVector RayDir = CamTransform.TransformVectorNoScale(FrustumCorners[i]);
+
+        // Intersection Math: T = Dot(PlaneOrigin - RayOrigin, PlaneNormal) / Dot(RayDir, PlaneNormal)
+        float Denominator = FVector::DotProduct(RayDir, PlaneNormal);
+        FVector IntersectionPoint;
+
+        // PlaneNormal points TO the camera. RayDir points FROM the camera.
+        // If Denominator is < 0, the ray is looking towards the plane.
+        if (Denominator < -UE_KINDA_SMALL_NUMBER)
+        {
+            float T = FVector::DotProduct(PlaneOrigin - CamLoc, PlaneNormal) / Denominator;
+
+            if (T > 0.0f && T < MaxDistance)
+            {
+                IntersectionPoint = CamLoc + RayDir * T;
+            }
+            else
+            {
+                // Caps infinite projection if looking towards horizon
+                IntersectionPoint = CamLoc + RayDir * MaxDistance;
+            }
+        }
+        else
+        {
+            // Ray looks away from or parallel to the plane (e.g., horizon visible). 
+            IntersectionPoint = CamLoc + RayDir * MaxDistance;
+        }
+
+        // Convert World Intersection to Plane's Local 2D Coordinates
+        FVector LocalToPlane = IntersectionPoint - PlaneOrigin;
+        float LocalX = FVector::DotProduct(LocalToPlane, PlaneRight);
+        float LocalY = FVector::DotProduct(LocalToPlane, PlaneUp);
+
+        MinBounds.X = FMath::Min(MinBounds.X, LocalX);
+        MinBounds.Y = FMath::Min(MinBounds.Y, LocalY);
+        MaxBounds.X = FMath::Max(MaxBounds.X, LocalX);
+        MaxBounds.Y = FMath::Max(MaxBounds.Y, LocalY);
+    }
+
+    // 5. Calculate Grid boundaries based on Mesh size
+    FVector2D ScaledTileSize = TileSize * TileScale;
+
+    int32 MinCol = FMath::FloorToInt(MinBounds.X / ScaledTileSize.X);
+    int32 MaxCol = FMath::CeilToInt(MaxBounds.X / ScaledTileSize.X);
+    int32 MinRow = FMath::FloorToInt(MinBounds.Y / ScaledTileSize.Y);
+    int32 MaxRow = FMath::CeilToInt(MaxBounds.Y / ScaledTileSize.Y);
+
+    // Safety check to prevent engine hang if horizon spans too far out
+    int32 NumTiles = (MaxCol - MinCol) * (MaxRow - MinRow);
+    if (NumTiles > MaxTiles)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("CalculateVisiblePlaneTiles: Requested grid of %i tiles exceeds MaxTiles limit. Aborting to prevent freeze."), NumTiles);
+        return TileTransforms;
+    }
+
+    // 6. Setup Rotation for the Instances
+    // Default Unreal Planes (SM_Plane) face UP (+Z), with Forward on +X and Right on +Y.
+    // We want the plane's Z-axis to equal PlaneNormal, X to equal PlaneUp, Y to equal PlaneRight.
+    FMatrix RotMatrix = FMatrix::Identity;
+    RotMatrix.SetAxis(0, PlaneUp);       // X Axis
+    RotMatrix.SetAxis(1, PlaneRight);    // Y Axis
+    RotMatrix.SetAxis(2, PlaneNormal);   // Z Axis
+    FQuat TileRotation = RotMatrix.ToQuat();
+
+    // 7. Generate Transform Array
+    for (int32 Col = MinCol; Col <= MaxCol; ++Col)
+    {
+        for (int32 Row = MinRow; Row <= MaxRow; ++Row)
+        {
+            // Find the local center for this specific tile
+            FVector TileCenterLocal = FVector(Col * ScaledTileSize.X, Row * ScaledTileSize.Y, 0.0f);
+
+            // Map local X/Y back to World 3D axes
+            FVector TileWorldLocation = PlaneOrigin
+                + (PlaneRight * TileCenterLocal.X)
+                + (PlaneUp * TileCenterLocal.Y);
+
+            TileTransforms.Add(FTransform(TileRotation, TileWorldLocation, FVector(TileScale)));
+        }
+    }
+
+    return TileTransforms;
 }
 
 // I didn't write this helper, but it does layout for the evidence pieces
