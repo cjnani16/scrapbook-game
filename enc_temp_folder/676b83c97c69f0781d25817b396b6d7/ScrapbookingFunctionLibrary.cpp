@@ -1329,7 +1329,7 @@ void UScrapbookingFunctionLibrary::DoJurorScoring( const int Threshold, const TA
     Scores.Empty();
     ReactionScales.Init(0, Jurors.Num());
 
-    AllPassed = true;
+    AllPassed = false;
     for (int i = 0; i < Jurors.Num(); ++i)
     {
         auto& Juror = Jurors[i];
