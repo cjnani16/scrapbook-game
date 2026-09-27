@@ -1361,24 +1361,32 @@ FDialogueData UScrapbookingFunctionLibrary::CreateRoundtableDialogue(
 {
     FDialogueData DialogueData;
 
+    // Helper struct for dialogue pools
+    struct FRoundTableDialogueData
+    {
+        TArray<FString> HighImpact;
+        TArray<FString> LowImpact;
+        TArray<FString> NoImpact;
+    };
+
     // Templates to use for the 'roundtable discussion'
-    const TArray<FString> HighImpactTemplates = {
+    // --- GENERIC DEFAULT FALLBACK POOL ---
+    FRoundTableDialogueData DefaultDialogue;
+    DefaultDialogue.HighImpact = TArray<FString>{
         TEXT("My biggest takeaway right now is the [TRAITNAME]."),
         TEXT("Looking at it this way, I really see the [TRAITNAME]."),
         TEXT("I'm really hung up on the [TRAITNAME] with things laid out like this."),
         TEXT("This makes the [TRAITNAME] hit really hard."),
         TEXT("The [TRAITNAME] here can't be ignored!")
     };
-
-    const TArray<FString> LowImpactTemplates = {
+    DefaultDialogue.LowImpact = TArray<FString>{
         TEXT("The [TRAITNAME] is something to think about, I guess."),
         TEXT("I'm a little curious about the [TRAITNAME]."),
         TEXT("The [TRAITNAME]'s somewhat interesting."),
         TEXT("Looking at the board, the [TRAITNAME] at least crosses my mind."),
         TEXT("The [TRAITNAME] seems a little relevant, at least.")
     };
-
-    const TArray<FString> NoImpactTemplates = {
+    DefaultDialogue.NoImpact = TArray<FString>{
         TEXT("Eh, it just doesn't make sense to me yet."),
         TEXT("I'm just not seeing the connection."),
         TEXT("None of this is really jumping out at me."),
@@ -1386,18 +1394,124 @@ FDialogueData UScrapbookingFunctionLibrary::CreateRoundtableDialogue(
         TEXT("I'm not getting a clear picture from this.")
     };
 
-    // Prevent out of bounds if arrays are misaligned
+    // --- CHARACTER SPECIFIC POOLS ---
+    TMap<FName, FRoundTableDialogueData> CharacterDialogueMap;
+
+    // Kathrynn
+    CharacterDialogueMap.Add(FName("Kathrynn"), FRoundTableDialogueData{
+        TArray<FString>{
+            TEXT("Goodness, with everything all laid out like this, I just can't ignore the [TRAITNAME]."),
+            TEXT("Well, of course the [TRAITNAME] is important! It was the very first thing I noticed, personally.")
+        },
+        TArray<FString>{
+            TEXT("Well, the [TRAITNAME] at least seems somewhat important."),
+            TEXT("Alright, alright, I'll admit that the [TRAITNAME] is a bit interesting."),
+            TEXT("[TRAITNAME], really? I mean, it's something to consider...")
+        },
+        TArray<FString>{
+            TEXT("Is that all? I have to pick up my boys from taekwondo."),
+            TEXT("You're finished, right? I need to get going."),
+            TEXT("Can I go now? If I leave now I might still make it on time to the HOA meeting."),
+            TEXT("You're trying your best, but not everyone is cut out for a leadership position.")
+        }
+    });
+
+    // Pat
+    CharacterDialogueMap.Add(FName("Pat"), FRoundTableDialogueData{
+        TArray<FString>{
+            TEXT("A rousing theory! The [TRAITNAME] really ties everything together!"),
+            TEXT("Yes, at last all the pieces fit! The [TRAITNAME] was the key to it all.")
+        },
+        TArray<FString>{
+            TEXT("And so the lines begin to connect! The [TRAITNAME] present surely must lead somewhere."),
+            TEXT("Ah yes, the [TRAITNAME]! Truly a thread worth following! I'll do my own investigative work as well."),
+            TEXT("You've intrigued me. A theory begins to form, with the [TRAITNAME] at the center of it all...")
+        },
+        TArray<FString>{
+            TEXT("That's it! A true theorist doesn't let a so-called 'lack of evidence' get in the way!"),
+            TEXT("A great effort, although not everyone has the acumen to get into investigative work."),
+            TEXT("Yes, well, if that's all, I have to get going! The Folly Society for Truth is hosting a midnight UFO sighting!"),
+            TEXT("A shame, I truly thought you were building to something there.")
+        }
+    });
+
+    // Ryan
+    CharacterDialogueMap.Add(FName("Ryan"), FRoundTableDialogueData{
+        TArray<FString>{
+            TEXT("I utterly agree, there's far too much [TRAITNAME] in the official story as presented."),
+            TEXT("I completely agree. The [TRAITNAME] cannot be set aside.")
+        },
+        TArray<FString>{
+            TEXT("I must say, I am a bit curious about the [TRAITNAME]."),
+            TEXT("As you've presented it, the [TRAITNAME] seems at least a bit relevant."),
+            TEXT("You've laid out a plausible theory. The [TRAITNAME] in particular is compelling.")
+        },
+        TArray<FString>{
+            TEXT("If that's all, I'll take my leave."),
+            TEXT("An...interesting theory. I believe the facts as shown present a different narrative."),
+            TEXT("Perhaps tomorrow we should leave the interpretation of evidence up to the lawyers."),
+            TEXT("I still don't see what you're attempting to prove here.")
+        }
+    });
+
+    // Sunny
+    CharacterDialogueMap.Add(FName("Sunny"), FRoundTableDialogueData{
+        TArray<FString>{
+            TEXT("Ya know, I always knew that Jordan was a nice young man! Just needed to see the [TRAITNAME] of it to prove it all!"),
+            TEXT("Well you got me convinced! Can't ignore all that [TRAITNAME], now can I?")
+        },
+        TArray<FString>{
+            TEXT("Well, when ya point out the [TRAITNAME] of it all like that, it makes some sense at least!"),
+            TEXT("You got my thoughts movin' on the [TRAITNAME], I can say that at least hon."),
+            TEXT("Folks in town sure got somethin' to hide. You're right, hon, the [TRAITNAME]'s worth considerin'.")
+        },
+        TArray<FString>{
+            TEXT("Hon, I'm just not seein' the connection."),
+            TEXT("Well, thanks for all that, sugar. I'll see all y'all tomorrow."),
+            TEXT("None of that made a lick of sense to me, hon."),
+            TEXT("Well then, wasn't that all fascinatin'! Can't say I understood it all, though.")
+        }
+    });
+
+    // Onyx
+    CharacterDialogueMap.Add(FName("Onyx"), FRoundTableDialogueData{
+        TArray<FString>{
+            TEXT("Yeah, it's like, the [TRAITNAME] is so clear when you put it that way."),
+            TEXT("Whoa, that makes so much sense! I totally can'click I didn't see the [TRAITNAME] before...")
+        },
+        TArray<FString>{
+            TEXT("You're, like, pointing out so much [TRAITNAME] I didn't see before."),
+            TEXT("Yeah, I guess the [TRAITNAME] is something to think about or whatever."),
+            TEXT("Huh? Oh, yeah, the [TRAITNAME]. That makes sense a little, I guess.")
+        },
+        TArray<FString>{
+            TEXT("I'm not sure why all this is supposed to, like, matter."),
+            TEXT("Whatever. Can I go?"),
+            TEXT("...So is that it?"),
+            TEXT("That was, like, total nonsense dude.")
+        }
+    });
+
     int32 NumJurors = FMath::Min(Jurors.Num(), JurorNames.Num());
 
     for (int32 i = 0; i < NumJurors; ++i)
     {
+        FName CurrentJurorName = JurorNames[i];
+
         FDialogueLineData LineData;
-        LineData.Speaker = JurorNames[i];
+        LineData.Speaker = CurrentJurorName;
         LineData.Emotion = ECharacterEmotion::Neutral;
         LineData.SoundEmotion = ECharacterEmotion::Neutral;
 
         TArray<int32> SalientTraitIndices;
         TArray<float> SalientTraitMultipliers;
+
+        // Fetch character dialogue or default if unmapped
+        const FRoundTableDialogueData* ActiveDialogue = CharacterDialogueMap.Find(CurrentJurorName);
+        if (!ActiveDialogue)
+        {
+            ActiveDialogue = &DefaultDialogue;
+        }
 
         // 1. Identify all salient traits for this juror
         for (int32 j = 0; j < Traits.Num(); ++j)
@@ -1441,7 +1555,7 @@ FDialogueData UScrapbookingFunctionLibrary::CreateRoundtableDialogue(
             FString SelectedTraitName = Traits[TraitIdx].TypeName.ToString();
 
             // Determine impact level based on 1.0f threshold
-            const TArray<FString>& TemplatesToUse = (MultiplierMagnitude >= 1.0f) ? HighImpactTemplates : LowImpactTemplates;
+            const TArray<FString>& TemplatesToUse = (MultiplierMagnitude >= 1.0f) ? ActiveDialogue->HighImpact : ActiveDialogue->LowImpact;
             FString ChosenTemplate = TemplatesToUse[FMath::RandRange(0, TemplatesToUse.Num() - 1)];
 
             // Do template string replace
@@ -1451,7 +1565,7 @@ FDialogueData UScrapbookingFunctionLibrary::CreateRoundtableDialogue(
         else
         {
             // 3. Fallback if they are totally unswayed by the current setup
-            FinalLineText = NoImpactTemplates[FMath::RandRange(0, NoImpactTemplates.Num() - 1)];
+            FinalLineText = ActiveDialogue->NoImpact[FMath::RandRange(0, ActiveDialogue->NoImpact.Num() - 1)];
         }
 
         LineData.Text = FText::FromString(FinalLineText);
